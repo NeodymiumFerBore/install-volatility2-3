@@ -27,7 +27,7 @@
       - python2-pip-whl
       - python2-setuptools-whl
       - virtualenv
-  
+
   - name: Install system dependencies for volatility 3
     tags: [vol3]
     ansible.builtin.apt:
@@ -84,10 +84,24 @@
         - ipython
         - capstone
         - yara
-        
+
+    - name: Find libyara.so
+      ansible.builtin.find:
+        path: "{{ venv_path }}/volatility2"
+        file_type: file
+        recurse: yes
+        use_regex: yes
+        patterns: "^libyara.so$"
+      register: libyara_path
+
+    - name: Assert that we found libyara.so
+      ansible.builtin.assert:
+        that: libyara_path.matched > 0
+        fail_msg: "'libyara.so' was not found in {{ venv_path }}/volatility2"
+
     - name: Symlink to libyara.so
       ansible.builtin.file:
-        src: "{{ venv_path }}/volatility2/lib/python2.7/site-packages/{{ venv_path }}/vol.py/lib/libyara.so"
+        src: "{{ libyara_path.files[0].path }}"
         dest: "{{ venv_path }}/volatility2/lib/libyara.so"
         state: link
 
@@ -96,13 +110,13 @@
         virtualenv: "{{ venv_path }}/volatility2"
         state: present
         name: git+https://github.com/volatilityfoundation/volatility.git
-    
+
     - name: "Link volatility 2 in '{{ install_path }}'"
       ansible.builtin.file:
         src: "{{ venv_path }}/volatility2/bin/vol.py"
         dest: "{{ install_path }}/vol2"
         state: link
-    
+
   - name: Install volatility 3
     tags: [vol3]
     block:
@@ -130,30 +144,39 @@
         - pytz
         - ipython
         - capstone
-    
-    - name: Get venv python3 version
-      ansible.builtin.shell: "{{ venv_path }}/volatility3/bin/python3 --version | awk '{print $2}' | awk -F '.' '{print $1\".\"$2}'"
-      changed_when: no
-      register: vol3_python_major_minor
-    
+
+    - name: Find libyara.so
+      ansible.builtin.find:
+        path: "{{ venv_path }}/volatility2"
+        file_type: file
+        recurse: yes
+        use_regex: yes
+        patterns: "^libyara.so$"
+      register: libyara_path
+
+    - name: Assert that we found libyara.so
+      ansible.builtin.assert:
+        that: libyara_path.matched > 0
+        fail_msg: "'libyara.so' was not found in {{ venv_path }}/volatility2"
+
     - name: Symlink to libyara.so
       ansible.builtin.file:
-        src: "{{ venv_path }}/volatility3/lib/python{{ vol3_python_major_minor.stdout }}/site-packages/{{ venv_path }}/volatility3/lib/libyara.so"
+        src: "{{ libyara_path.files[0].path }}"
         dest: "{{ venv_path }}/volatility3/lib/libyara.so"
         state: link
-    
+
     - name: Install volatility 3
       ansible.builtin.pip:
         virtualenv: "{{ venv_path }}/volatility3"
         state: present
         name: git+https://github.com/volatilityfoundation/volatility3.git
-    
+
     - name: "Link volatility 3 in '{{ install_path }}'"
       ansible.builtin.file:
         src: "{{ venv_path }}/volatility3/bin/vol"
         dest: "{{ install_path }}/vol3"
         state: link
-    
+
     - name: "Link volshell in '{{ install_path }}'"
       ansible.builtin.file:
         src: "{{ venv_path }}/volatility3/bin/volshell"
@@ -171,7 +194,7 @@
       msg:
       - You can run volatility 3 by running vol3!
       - You can run volshell by simply running volshell!
-  
+
   - name: Recap
     ansible.builtin.debug:
       msg: "If you have a 'command not found' error, make sure '{{ install_path }}' is in your PATH!"
